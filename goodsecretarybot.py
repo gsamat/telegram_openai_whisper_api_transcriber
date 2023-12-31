@@ -8,8 +8,7 @@ async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('Hi! Send me a voice message.')
 
 async def transcribe_voice(update: Update, context: CallbackContext) -> None:
-    voice_file = await context.bot.get_file(update.message.voice.file_id)
-    voice_file.download('voice.ogg')
+    await context.bot.get_file(voice_file.file_id).download(custom_path='voice.ogg')
 
     with open('voice.ogg', 'rb') as f:
         response = requests.post(
