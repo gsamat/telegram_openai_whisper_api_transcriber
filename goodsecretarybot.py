@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 import requests
+import asyncio
 import os
 
 async def start(update: Update, context: CallbackContext) -> None:
@@ -25,7 +26,7 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
 
     os.remove('voice.ogg')
 
-async def main():
+def main():
     application = Application.builder().token("***REMOVED***").build()
 
     start_handler = CommandHandler('start', start)
@@ -34,8 +35,7 @@ async def main():
     application.add_handler(start_handler)
     application.add_handler(voice_handler)
 
-    await application.run_polling()
+    application.run_polling()
 
-if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+if __name__ == '__main__': 
+    main()
