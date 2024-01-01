@@ -8,25 +8,27 @@ async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('Hi! Send me a voice message.')
 
 async def transcribe_voice(update: Update, context: CallbackContext) -> None:
-    await context.bot.get_file(voice_file.file_id).download(custom_path='voice.ogg')
+    voice_file = await context.bot.get_file(update.message.voice.file_id)
+    await voice_file.download_to_drive('voice.ogg')
+    transcript = ''
 
-    with open('voice.ogg', 'rb') as f:
-        response = requests.post(
-            "YOUR_WHISPER_API_ENDPOINT",  # Replace with the actual Whisper API endpoint
-            headers={"Authorization": "Bearer ***REMOVED***"},
-            files={"file": f}
-        )
-
-    if response.status_code == 200:
-        transcription = response.json().get("transcription")
-        await update.message.reply_text(transcription)
-    else:
-        await update.message.reply_text("Sorry, I couldn't transcribe that.")
-
+    try:
+        with open('voice.ogg', 'rb') as f:
+            transcript = client.audio.transcriptions.create(
+              model="whisper-1", 
+              file=audio_file, 
+              response_format="text"
+            )
+        await update.message.reply_text(transcript)
+    except Exception as e:
+        await update.message.reply_text(f"Sorry, I couldn't transcribe that. This is the exception: {e}")        
+    
     os.remove('voice.ogg')
 
 def main():
     application = Application.builder().token("***REMOVED***").build()
+
+    client = OpenAI()
 
     start_handler = CommandHandler('start', start)
     voice_handler = MessageHandler(filters.VOICE, transcribe_voice)
