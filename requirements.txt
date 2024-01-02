@@ -1,0 +1,4 @@
+python-telegram-bot
+requests
+openai
+python-magic
