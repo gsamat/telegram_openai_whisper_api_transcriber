@@ -36,7 +36,7 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
     
 
 def main():
-    application = Application.builder().token("***REMOVED***").build()
+    application = Application.builder().token(telegram_token).build()
 
     start_handler = CommandHandler('start', start)
     voice_handler = MessageHandler(filters.VOICE | filters.AUDIO, transcribe_voice)
