@@ -1,34 +1,30 @@
-from urllib.parse import urlparse
+from openai import OpenAI
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
-import requests
+from urllib.parse import urlparse
 import asyncio
-import os
 import io
-from openai import OpenAI
 import magic
+import os
+import requests
+
+telegram_token = os.environ.get('TELEGRAM_TOKEN')
 
 async def start(update: Update, context: CallbackContext) -> None:
-    await update.message.reply_text('Hi! Send me a voice message.')
+    await update.message.reply_text('Привет! Я транскрибирую голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. Ограничение на длину файла 20 мегабайт. Это больше часа, если голосовое записано внутри телеграма и 40 минут, если во встроенном приложении айфона. Ничего не записываю и не храню.')
 
 async def transcribe_voice(update: Update, context: CallbackContext) -> None:
-    if update.message.voice:
-        file_handle = await context.bot.get_file(update.message.voice.file_id)
-    elif update.message.audio:
-        file_handle = await context.bot.get_file(update.message.audio.file_id)
-    filename = os.path.basename(urlparse(file_handle.file_path).path)
-    print(filename)
-    file_data = io.BytesIO()
-    await file_handle.download_to_memory(file_data)
-    file_data.seek(0)
-    mime_type = magic.from_buffer(file_data.read(2048), mime=True)
-    file_data.seek(0)
-    print('ours: ', mime_type)
-    file = ('file', file_data.getvalue(), mime_type)
-
-    transcript = ''
-
     try:
+        if update.message.voice:
+            file_handle = await context.bot.get_file(update.message.voice.file_id)
+        elif update.message.audio:
+            file_handle = await context.bot.get_file(update.message.audio.file_id)
+        file_data = io.BytesIO()
+        await file_handle.download_to_memory(file_data)
+        file_data.seek(0)
+        mime_type = magic.from_buffer(file_data.read(2048), mime=True)
+        file_data.seek(0)
+        file = ('file', file_data.getvalue(), mime_type)
         transcript = client.audio.transcriptions.create(
           model="whisper-1", 
           file=file, 
@@ -36,12 +32,11 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
         )
         await update.message.reply_text(transcript, reply_to_message_id=update.message.message_id)
     except Exception as e:
-        await update.message.reply_text(f"Sorry, I couldn't transcribe that. This is the exception: {e}", reply_to_message_id=update.message.message_id)
+        await update.message.reply_text(f"Ошибочка: {e}", reply_to_message_id=update.message.message_id)
     
 
 def main():
     application = Application.builder().token("***REMOVED***").build()
-
 
     start_handler = CommandHandler('start', start)
     voice_handler = MessageHandler(filters.VOICE | filters.AUDIO, transcribe_voice)
@@ -53,5 +48,5 @@ def main():
 
 if __name__ == '__main__': 
 
-    client = OpenAI(api_key='***REMOVED***')
+    client = OpenAI()
     main()
