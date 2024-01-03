@@ -1,6 +1,6 @@
-python-telegram-bot
-requests
-openai
-python-magic
-aiosqlite
-sentry-sdk
+python-telegram-bot==20.*
+requests==2.31.*
+openai==1.6.*
+python-magic==0.4.*
+aiosqlite==0.19.*
+sentry-sdk==1.39.*
