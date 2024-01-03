@@ -1,0 +1,222 @@
+[tool.ruff]
+line-length = 120
+target-version = 'py311'
+preview = true
+select = [
+    # Pyflakes
+    'F',
+
+    # pycodestyle Warning
+    'W',
+
+    # pycodestyle Error
+    'E',
+
+    # mccabe
+    'C90',
+
+    # isort
+    'I',
+
+    # pep8-naming
+    'N',
+
+    # pydocstyle
+    'D',
+
+    # pyupgrade
+    'UP',
+
+    # flake8-2020
+    'YTT',
+
+    # flake8-annotations
+    'ANN',
+
+    # flake8-async
+    'ASYNC',
+
+    # flake8-trio
+    # Trio (https://github.com/python-trio/trio) not used
+#    'TRIO',
+
+    # flake8-bandit
+    'S',
+
+    # flake8-blind-except
+    # disabled, because the main functionality is dependent on it
+#    'BLE',
+
+    # flake8-boolean-trap
+    'FBT',
+
+    # flake8-bugbear
+    'B',
+
+    # flake8-builtins
+    'A',
+
+    # flake8-commas
+    'COM',
+
+    # flake8-copyright
+    # not need for this project
+#    'CPY',
+
+    # flake8-comprehensions
+    'C4',
+
+    # flake8-datetimez
+    'DTZ',
+
+    # flake8-debugger
+    'T10',
+
+    # flake8-django
+    'DJ',
+
+    # flake8-errmsg
+    'EM',
+
+    # flake8-executable
+    'EXE',
+
+    # flake8-future-annotations
+    'FA',
+
+    # flake8-implicit-str-concat
+    'ISC',
+
+    # flake8-import-conventions
+    'ICN',
+
+    # flake8-logging-format
+    'G',
+
+    # flake8-no-pep420
+    'INP',
+
+    # flake8-pie
+    'PIE',
+
+    # flake8-print
+    'T20',
+
+    # flake8-pyi
+    'PYI',
+
+    # flake8-pytest-style
+    'PT',
+
+    # flake8-quotes
+    'Q',
+
+    # flake8-raise
+    'RSE',
+
+    # flake8-return
+    'RET',
+
+    # flake8-self
+    'SLF',
+
+    # flake8-slots
+    'SLOT',
+
+    # flake8-simplify
+    'SIM',
+
+    # flake8-tidy-imports
+    'TID',
+
+    # flake8-type-checking
+    'TCH',
+
+    # flake8-gettext
+    'INT',
+
+    # flake8-unused-arguments
+    'ARG',
+
+    # flake8-use-pathlib
+    'PTH',
+
+    # flake8-todos
+    'TD',
+
+    # flake8-fixme
+    'FIX',
+
+    # eradicate
+    'ERA',
+
+    # pandas-vet
+    # not used
+#    'PD',
+
+    # pygrep-hooks
+    'PGH',
+
+    # Pylint
+    'PL',
+
+    # tryceratops
+    'TRY',
+
+    # flynt
+    'FLY',
+
+    # NumPy-specific rules
+    # not used
+#    'NPY',
+
+    # Airflow
+    # not used
+#    'AIR',
+
+    # Perflint
+    'PERF',
+
+    # refurb
+    'FURB',
+
+    # flake8-logging
+    'LOG',
+
+    # Ruff-specific rules
+    'RUF',
+]
+
+ignore = [
+    # https://docs.astral.sh/ruff/rules/ambiguous-unicode-character-string/
+    # false-positive
+    'RUF001',
+
+    # https://docs.astral.sh/ruff/rules/one-blank-line-before-class/
+    # incompatible with D211
+    'D203',
+
+    # https://docs.astral.sh/ruff/rules/multi-line-summary-first-line/
+    # incompatible with D213
+    'D212',
+
+    # https://docs.astral.sh/ruff/rules/undocumented-public-module/
+    # not need
+    'D100',
+
+    # https://docs.astral.sh/ruff/rules/undocumented-public-function/
+    # not need
+    'D103',
+]
+
+[tool.ruff.format]
+docstring-code-line-length = 120
+quote-style = 'single'
+
+[tool.ruff.isort]
+order-by-type = false
+lines-after-imports = 2
+
+[tool.ruff.flake8-quotes]
+inline-quotes = "single"
+multiline-quotes = "single"
