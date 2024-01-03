@@ -11,5 +11,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 ENV TELEGRAM_TOKEN='your telegram bot token here'
 ENV OPENAI_API_KEY='your openai api key here'
+ENV SENTRY_DSN='your sentry DNS here' 
+ENV BOT_NAME='your bot name here'
 
 CMD ["python", "goodsecretarybot.py"]
