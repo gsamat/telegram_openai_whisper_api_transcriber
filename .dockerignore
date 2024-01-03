@@ -1,0 +1,9 @@
+.dockerignore
+.git
+.github
+.gitignore
+.idea
+.venv
+.ruff_cache
+Dockerfile
+readme.md

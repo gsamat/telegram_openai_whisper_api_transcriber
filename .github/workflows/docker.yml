@@ -1,0 +1,36 @@
+name: docker
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docker.yml"
+      - "Dockerfile"
+      - "goodsecretarybot.py"
+      - "requirements.txt"
+
+jobs:
+  lint:
+    name: linting Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout the project
+        uses: actions/checkout@v3
+
+      - name: run linter
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "Dockerfile"
+
+  check:
+    name: check building docker image
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: checkout the project
+        uses: actions/checkout@v3
+
+      - name: build the docker image
+        run: docker build .
