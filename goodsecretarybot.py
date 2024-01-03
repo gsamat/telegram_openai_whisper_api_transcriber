@@ -16,11 +16,13 @@ import sqlite3
 MAX_MESSAGE_LENGTH = 4096
 
 telegram_token = os.environ.get('TELEGRAM_TOKEN')
+bot_name = os.environ.get('BOT_NAME')
 
 async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('Привет! Я распознаю голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. \n \nЕсть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, как именно оно записано. Ещё мне можно прислать голосовую заметку из встроенного приложения айфона. \n \nРаспознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио. \n \nНичего не записываю и не храню.')
 
-async def transcribe_voice(update: Update, context: CallbackContext) -> None:
+
+async def handle_voice(update: Update, context: CallbackContext) -> None:
     
     hashed_user_id = hashlib.sha256(str(update.message.from_user.id).encode()).hexdigest()
     sentry_sdk.set_user({"id": hashed_user_id})
@@ -76,14 +78,27 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
             await db.commit()
         sentry_sdk.capture_exception(e)
 
+async def handle_command(update: Update, context: CallbackContext) -> None:
+    print('checking command\n')
+
+    # If the bot is mentioned in a reply to a voice message
+    if update.message.reply_to_message and (update.message.reply_to_message.voice or update.message.reply_to_message.audio):
+        voice_message = update.message.reply_to_message
+        voice_update = type('obj', (object,), {'message' : voice_message})
+        await handle_voice(voice_update, context)
+
 def main():
     application = Application.builder().token(telegram_token).build()
 
     start_handler = CommandHandler('start', start)
-    voice_handler = MessageHandler(filters.VOICE | filters.AUDIO, transcribe_voice)
+    voice_handler = MessageHandler(filters.ChatType.PRIVATE & (filters.VOICE | filters.AUDIO), handle_voice)
+    text_handler = CommandHandler('text', handle_command)
+    mention_handler = MessageHandler(filters.ChatType.GROUPS & filters.Mention(bot_name), handle_command)
 
     application.add_handler(start_handler)
     application.add_handler(voice_handler)
+    application.add_handler(text_handler)
+    application.add_handler(mention_handler)
 
     application.run_polling()
 
