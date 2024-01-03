@@ -50,10 +50,13 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
             file=file,
             response_format='text',
         )
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = time.strftime('%Y-%m-%d %H:%M:%S')
         transcription_time = time.time() - start_time
         for i in range(0, len(transcript), MAX_MESSAGE_LENGTH):
-            await update.message.reply_text(transcript[i:i+MAX_MESSAGE_LENGTH], reply_to_message_id=update.message.message_id)
+            await update.message.reply_text(
+                transcript[i : i + MAX_MESSAGE_LENGTH],
+                reply_to_message_id=update.message.message_id,
+            )
         logger.info('%s, %d, %.6f', hashed_user_id, file_duration, transcription_time)
         async with aiosqlite.connect('transcriptions.db') as db:
             await db.execute(
@@ -65,13 +68,16 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
                     created_at TEXT
                 )"""
             )
-            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) VALUES (?, ?, ?, ?)",
-                             (hashed_user_id, file_duration, transcription_time, current_time))
+            await db.execute(
+                'INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) '
+                'VALUES (?, ?, ?, ?)',
+                (hashed_user_id, file_duration, transcription_time, current_time),
+            )
             await db.commit()
 
     except Exception as e:
         await update.message.reply_text(f'Ошибочка: {e}', reply_to_message_id=update.message.message_id)
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        current_time = time.strftime('%Y-%m-%d %H:%M:%S')
         async with aiosqlite.connect('transcriptions.db') as db:
             await db.execute(
                 """CREATE TABLE IF NOT EXISTS transcriptions (
@@ -82,8 +88,11 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
                     created_at TEXT
                 )"""
             )
-            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) VALUES (?, ?, ?)",
-                             (hashed_user_id, file_duration, -1, current_time))
+            await db.execute(
+                'INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) '
+                'VALUES (?, ?, ?)',
+                (hashed_user_id, file_duration, -1, current_time),
+            )
             await db.commit()
         sentry_sdk.capture_exception(e)
 
