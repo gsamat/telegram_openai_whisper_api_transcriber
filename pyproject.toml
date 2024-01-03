@@ -207,6 +207,14 @@ ignore = [
     # https://docs.astral.sh/ruff/rules/undocumented-public-function/
     # not need
     'D103',
+
+    # https://docs.astral.sh/ruff/rules/missing-trailing-comma/
+    # conflict with formatter
+    'COM812',
+
+    # https://docs.astral.sh/ruff/rules/single-line-implicit-string-concatenation/
+    # conflict with formatter
+    'ISC001',
 ]
 
 [tool.ruff.format]
@@ -218,5 +226,5 @@ order-by-type = false
 lines-after-imports = 2
 
 [tool.ruff.flake8-quotes]
-inline-quotes = "single"
-multiline-quotes = "single"
+inline-quotes = 'single'
+multiline-quotes = 'double'
