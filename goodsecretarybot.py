@@ -55,11 +55,11 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
         async with aiosqlite.connect('transcriptions.db') as db:
             await db.execute(
                 """CREATE TABLE IF NOT EXISTS transcriptions (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                hashed_user_id TEXT,
-                                audio_duration INTEGER,
-                                transcription_time REAL
-                            )"""
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    hashed_user_id TEXT,
+                    audio_duration INTEGER,
+                    transcription_time REAL
+                )"""
             )
             await db.execute(
                 'INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time) VALUES (?, ?, ?)',
@@ -72,11 +72,11 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
         async with aiosqlite.connect('transcriptions.db') as db:
             await db.execute(
                 """CREATE TABLE IF NOT EXISTS transcriptions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        hashed_user_id TEXT,
-                        audio_duration INTEGER,
-                        transcription_time REAL
-                    )"""
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    hashed_user_id TEXT,
+                    audio_duration INTEGER,
+                    transcription_time REAL
+                )"""
             )
             await db.execute(
                 'INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time) VALUES (?, ?, ?)',
