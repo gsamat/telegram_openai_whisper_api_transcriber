@@ -56,6 +56,16 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
 
     except Exception as e:
         await update.message.reply_text(f"Ошибочка: {e}", reply_to_message_id=update.message.message_id)
+        async with aiosqlite.connect("transcriptions.db") as db:
+            await db.execute("""CREATE TABLE IF NOT EXISTS transcriptions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        hashed_user_id TEXT,
+                        audio_duration INTEGER,
+                        transcription_time REAL
+                    )""")
+            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time) VALUES (?, ?, ?)",
+                             (hashed_user_id, file_duration, -1))
+            await db.commit()
         sentry_sdk.capture_exception(e)
 
 def main():
