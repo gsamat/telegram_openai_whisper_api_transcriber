@@ -11,11 +11,32 @@ import aiosqlite
 import time
 import hashlib
 import sentry_sdk
+import sqlite3
+
+MAX_MESSAGE_LENGTH = 4096
 
 telegram_token = os.environ.get('TELEGRAM_TOKEN')
 
 async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('Привет! Я распознаю голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. \n \nЕсть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, как именно оно записано. Ещё мне можно прислать голосовую заметку из встроенного приложения айфона. \n \nРаспознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио. \n \nНичего не записываю и не храню.')
+
+def update_db_schema():
+    # Get current timestamp
+    current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Connect to the database
+    with sqlite3.connect("transcriptions.db") as db:
+        # Check if the 'created_at' column exists
+        cursor = db.cursor()
+        cursor.execute("PRAGMA table_info(transcriptions)")
+        columns = cursor.fetchall()
+        if not any(column[1] == 'created_at' for column in columns):
+            # Alter table to add created_at column
+            cursor.execute("ALTER TABLE transcriptions ADD COLUMN created_at TEXT DEFAULT ''")
+
+            # Update existing rows to have the current timestamp
+            cursor.execute("UPDATE transcriptions SET created_at = ?", (current_time,))
+            db.commit()
 
 async def transcribe_voice(update: Update, context: CallbackContext) -> None:
     
@@ -40,35 +61,42 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
           file=file, 
           response_format="text"
         )
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         transcription_time = time.time() - start_time
-        await update.message.reply_text(transcript, reply_to_message_id=update.message.message_id)
+        for i in range(0, len(transcript), MAX_MESSAGE_LENGTH):
+                    await update.message.reply_text(transcript[i:i+MAX_MESSAGE_LENGTH], reply_to_message_id=update.message.message_id)
         print(f"{hashed_user_id}, {file_duration}, {transcription_time}")
         async with aiosqlite.connect("transcriptions.db") as db:
             await db.execute("""CREATE TABLE IF NOT EXISTS transcriptions (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 hashed_user_id TEXT,
                                 audio_duration INTEGER,
-                                transcription_time REAL
+                                transcription_time REAL,
+                                created_at TEXT
                             )""")
-            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time) VALUES (?, ?, ?)",
-                             (hashed_user_id, file_duration, transcription_time))
+            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) VALUES (?, ?, ?, ?)",
+                             (hashed_user_id, file_duration, transcription_time, current_time))
             await db.commit()
 
     except Exception as e:
         await update.message.reply_text(f"Ошибочка: {e}", reply_to_message_id=update.message.message_id)
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         async with aiosqlite.connect("transcriptions.db") as db:
             await db.execute("""CREATE TABLE IF NOT EXISTS transcriptions (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         hashed_user_id TEXT,
                         audio_duration INTEGER,
-                        transcription_time REAL
+                        transcription_time REAL,
+                        created_at TEXT        
                     )""")
-            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time) VALUES (?, ?, ?)",
-                             (hashed_user_id, file_duration, -1))
+            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) VALUES (?, ?, ?)",
+                             (hashed_user_id, file_duration, -1, current_time))
             await db.commit()
         sentry_sdk.capture_exception(e)
 
 def main():
+    update_db_schema()
+
     application = Application.builder().token(telegram_token).build()
 
     start_handler = CommandHandler('start', start)
