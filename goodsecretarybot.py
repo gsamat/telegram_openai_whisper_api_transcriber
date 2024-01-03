@@ -2,6 +2,7 @@ import hashlib
 import io
 import os
 import time
+from logging import getLogger
 
 import aiosqlite
 import magic
@@ -12,6 +13,7 @@ from telegram.ext import Application, CallbackContext, CommandHandler, filters, 
 
 
 telegram_token = os.environ.get('TELEGRAM_TOKEN')
+logger = getLogger(__name__)
 
 
 async def start(update: Update, **kwargs: dict) -> None:
@@ -49,7 +51,7 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
         )
         transcription_time = time.time() - start_time
         await update.message.reply_text(transcript, reply_to_message_id=update.message.message_id)
-        print(f'{hashed_user_id}, {file_duration}, {transcription_time}')
+        logger.info('%s, %d, %.6f', hashed_user_id, file_duration, transcription_time)
         async with aiosqlite.connect('transcriptions.db') as db:
             await db.execute(
                 """CREATE TABLE IF NOT EXISTS transcriptions (
