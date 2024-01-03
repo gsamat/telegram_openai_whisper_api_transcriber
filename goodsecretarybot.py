@@ -79,8 +79,6 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
         sentry_sdk.capture_exception(e)
 
 async def handle_command(update: Update, context: CallbackContext) -> None:
-    print('checking command\n')
-
     # If the bot is mentioned in a reply to a voice message
     if update.message.reply_to_message and (update.message.reply_to_message.voice or update.message.reply_to_message.audio):
         voice_message = update.message.reply_to_message
