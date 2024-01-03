@@ -228,3 +228,6 @@ lines-after-imports = 2
 [tool.ruff.flake8-quotes]
 inline-quotes = 'single'
 multiline-quotes = 'double'
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
