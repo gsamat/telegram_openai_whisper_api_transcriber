@@ -100,8 +100,9 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
 
 async def handle_command(update: Update, context: CallbackContext) -> None:
     # If the bot is mentioned in a reply to a voice message
-    is_audio = update.message.reply_to_message.voice or update.message.reply_to_message.audio
-    if update.message.reply_to_message and is_audio:
+    if update.message.reply_to_message and (
+        update.message.reply_to_message.voice or update.message.reply_to_message.audio
+    ):
         voice_message = update.message.reply_to_message
         voice_update = type('obj', (object,), {'message': voice_message})
         await handle_voice(voice_update, context)
