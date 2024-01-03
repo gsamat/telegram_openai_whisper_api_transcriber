@@ -14,9 +14,14 @@ from telegram.ext import Application, CallbackContext, CommandHandler, filters, 
 telegram_token = os.environ.get('TELEGRAM_TOKEN')
 
 
-async def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, **kwargs: dict) -> None:
     await update.message.reply_text(
-        'Привет! Я распознаю голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. \n \nЕсть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, как именно оно записано. Ещё мне можно прислать голосовую заметку из встроенного приложения айфона. \n \nРаспознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио. \n \nНичего не записываю и не храню.'
+        'Привет! Я распознаю голосовые сообщения. '
+        'Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию.\n\n'
+        'Есть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, '
+        'как именно оно записано. Ещё мне можно прислать голосовую заметку из встроенного приложения айфона.\n\n'
+        'Распознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио.\n\n'
+        'Ничего не записываю и не храню.'
     )
 
 
@@ -79,7 +84,7 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
         sentry_sdk.capture_exception(e)
 
 
-def main():
+def main() -> None:
     application = Application.builder().token(telegram_token).build()
 
     start_handler = CommandHandler('start', start)
