@@ -73,7 +73,7 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
                         transcription_time REAL,
                         created_at TEXT        
                     )""")
-            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) VALUES (?, ?, ?)",
+            await db.execute("INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) VALUES (?, ?, ?, ?)",
                              (hashed_user_id, file_duration, -1, current_time))
             await db.commit()
         sentry_sdk.capture_exception(e)
