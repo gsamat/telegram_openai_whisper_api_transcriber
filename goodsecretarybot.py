@@ -90,7 +90,7 @@ async def transcribe_voice(update: Update, context: CallbackContext) -> None:
             )
             await db.execute(
                 'INSERT INTO transcriptions (hashed_user_id, audio_duration, transcription_time, created_at) '
-                'VALUES (?, ?, ?)',
+                'VALUES (?, ?, ?, ?)',
                 (hashed_user_id, file_duration, -1, current_time),
             )
             await db.commit()
