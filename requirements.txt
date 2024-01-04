@@ -4,3 +4,5 @@ openai
 python-magic
 aiosqlite
 sentry-sdk
+# may unstable in patch versions
+ruff==0.1.11
