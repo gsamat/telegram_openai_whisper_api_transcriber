@@ -18,7 +18,7 @@ bot_name = os.environ.get('BOT_NAME')
 logger = getLogger(__name__)
 
 
-async def start(update: Update, **kwargs: dict) -> None:
+async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text(
         'Привет! Я распознаю голосовые сообщения. '
         'Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию.\n\n'
