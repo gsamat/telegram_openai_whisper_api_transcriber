@@ -1,4 +1,4 @@
-from openai import OpenAI
+from openai import AsyncClient
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 from urllib.parse import urlparse
@@ -40,7 +40,7 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
         file_data.seek(0)
         file = ('file', file_data.getvalue(), mime_type)
         start_time = time.time()
-        transcript = client.audio.transcriptions.create(
+        transcript = await client.audio.transcriptions.create(
           model="whisper-1", 
           file=file, 
           response_format="text"
@@ -110,5 +110,5 @@ if __name__ == '__main__':
         # We recommend adjusting this value in production.
         profiles_sample_rate=1.0,
     )
-    client = OpenAI()
+    client = AsyncClient()
     main()
