@@ -7,3 +7,8 @@
 .ruff_cache
 Dockerfile
 readme.md
+telegram-bot-api
+.env
+.env.example
+transcriptions.db
+logout.sh

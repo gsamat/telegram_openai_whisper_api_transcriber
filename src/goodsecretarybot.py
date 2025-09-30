@@ -1,4 +1,3 @@
-from openai import OpenAI
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 from urllib.parse import urlparse
@@ -12,11 +11,17 @@ import time
 import hashlib
 import sentry_sdk
 import sqlite3
+from transcribe import get_transcription_client
 
 MAX_MESSAGE_LENGTH = 4096
 
 telegram_token = os.environ.get('TELEGRAM_TOKEN')
 bot_name = os.environ.get('BOT_NAME')
+telegram_bot_api_url = os.environ.get('TELEGRAM_BOT_API_URL')
+transcription_engine = os.environ.get('TRANSCRIPTION_ENGINE', 'openai')
+
+
+
 
 async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('Привет! Я распознаю голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. \n \nЕсть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, как именно оно записано. Ещё мне можно прислать голосовую заметку из встроенного приложения айфона. \n \nРаспознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио. \n \nНичего не записываю и не храню.')
@@ -28,6 +33,7 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
     sentry_sdk.set_user({"id": hashed_user_id})
     file_duration = update.message.voice.duration if update.message.voice else update.message.audio.duration
 
+    file_handle = None
     try:
         if update.message.voice:
             file_handle = await context.bot.get_file(update.message.voice.file_id)
@@ -38,13 +44,8 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
         file_data.seek(0)
         mime_type = magic.from_buffer(file_data.read(2048), mime=True)
         file_data.seek(0)
-        file = ('file', file_data.getvalue(), mime_type)
         start_time = time.time()
-        transcript = client.audio.transcriptions.create(
-          model="whisper-1", 
-          file=file, 
-          response_format="text"
-        )
+        transcript = client.transcribe(file_data, mime_type)
         current_time = time.strftime("%Y-%m-%d %H:%M:%S")
         transcription_time = time.time() - start_time
         for i in range(0, len(transcript), MAX_MESSAGE_LENGTH):
@@ -77,6 +78,9 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
                              (hashed_user_id, file_duration, -1, current_time))
             await db.commit()
         sentry_sdk.capture_exception(e)
+    finally:
+        if file_handle and os.path.exists(file_handle.file_path):
+            os.remove(file_handle.file_path)
 
 async def handle_command(update: Update, context: CallbackContext) -> None:
     # If the bot is mentioned in a reply to a voice message
@@ -86,7 +90,11 @@ async def handle_command(update: Update, context: CallbackContext) -> None:
         await handle_voice(voice_update, context)
 
 def main():
-    application = Application.builder().token(telegram_token).build()
+    application = None
+    if telegram_bot_api_url:
+        application = Application.builder().token(telegram_token).base_url(telegram_bot_api_url).local_mode(True).build()
+    else:
+        application = Application.builder().token(telegram_token).local_mode(True).build()
 
     start_handler = CommandHandler('start', start)
     voice_handler = MessageHandler(filters.ChatType.PRIVATE & (filters.VOICE | filters.AUDIO), handle_voice)
@@ -110,5 +118,5 @@ if __name__ == '__main__':
         # We recommend adjusting this value in production.
         profiles_sample_rate=1.0,
     )
-    client = OpenAI()
+    client = get_transcription_client(transcription_engine)
     main()

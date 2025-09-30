@@ -1,0 +1,38 @@
+services:
+  telegram-bot-api:
+    build: 
+      context: telegram-bot-api
+      args:
+        - BUILD_CPU_COUNT=${BUILD_CPU_COUNT}
+    environment:
+      - TELEGRAM_API_ID=${TELEGRAM_API_ID}
+      - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
+      - TELEGRAM_LOCAL=true
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+    restart: always
+  goodsecretarybot:
+    build:
+      context: .
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - TRANSCRIPTION_ENGINE=${TRANSCRIPTION_ENGINE}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - BOT_NAME=${BOT_NAME}
+      - TELEGRAM_BOT_API_URL=${TELEGRAM_BOT_API_URL}
+    restart: always
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+      - ./transcriptions.db:/app/transcriptions.db
+    depends_on:
+      - telegram-bot-api
+
+volumes:
+  telegram-bot-api-data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=500m,uid=1000"
