@@ -1,6 +1,0 @@
-python-telegram-bot
-requests
-openai
-python-magic
-aiosqlite
-sentry-sdk
