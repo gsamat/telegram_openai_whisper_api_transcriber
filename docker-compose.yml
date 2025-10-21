@@ -1,0 +1,34 @@
+services:
+  telegram-bot-api:
+    build: 
+      context: telegram-bot-api
+      args:
+        - BUILD_CPU_COUNT=${BUILD_CPU_COUNT}
+    env_file: 
+      - .env
+    environment:
+      - TELEGRAM_LOCAL=true
+    restart: always
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+
+  goodsecretarybot:
+    build: .
+    entrypoint: ./entrypoint.sh
+    command: uv run src/manage.py runbot
+    env_file: 
+      - .env
+    restart: always
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+      - ./data:/app/data
+    depends_on:
+      - telegram-bot-api
+
+volumes:
+  telegram-bot-api-data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=500m,uid=1000"
