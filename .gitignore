@@ -1,2 +1,5 @@
 .DS_Store
+venv
 transcriptions.db
+__pycache__
+.env
