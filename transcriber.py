@@ -62,4 +62,4 @@ def transcribe_audio(file_data: io.BytesIO, mime_type: str) -> tuple[str, float]
         response_format="text",
     )
     transcription_time = time.time() - start_time
-    return transcript, transcription_time
+    return transcript, round(transcription_time, 2)

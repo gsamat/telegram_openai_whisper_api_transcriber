@@ -13,6 +13,7 @@ from telegram.ext import (
     filters,
 )
 
+from billing import decrement_balance
 from transcriber import (
     detect_mime_type,
     hash_user_id,
@@ -69,6 +70,9 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
                 reply_to_message_id=update.message.message_id,
             )
         print(f"{hashed_user_id}, {file_duration}, {transcription_time}")
+        await decrement_balance(
+            hashed_user_id, transcription_time, source="usage_charge"
+        )
         await log_transcription(hashed_user_id, file_duration, transcription_time)
 
     except Exception as e:
