@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 
 DATABASE = "transcriptions.db"
 
+# 1 EUR = 100 credits (1 credit = 1 second of transcription)
+CREDITS_PER_EUR = 100
+
 
 async def init_billing_table():
     """Create billing table and index if they don't exist."""
@@ -101,4 +104,30 @@ async def decrement_balance(
         hashed_user_id=hashed_user_id,
         amount=-abs(amount),
         source=source,
+    )
+
+
+async def increment_balance(
+    hashed_user_id: str,
+    amount: float,
+    source: str,
+    telegram_payment_id: str | None = None,
+) -> int:
+    """
+    Increment user balance (convenience wrapper for credits).
+
+    Args:
+        hashed_user_id: SHA256 hash of the Telegram user ID
+        amount: Amount to add (must be positive)
+        source: Transaction type (e.g., 'telegram_payment')
+        telegram_payment_id: Optional Telegram payment reference ID
+
+    Returns:
+        The ID of the created billing record
+    """
+    return await add_billing_record(
+        hashed_user_id=hashed_user_id,
+        amount=abs(amount),
+        source=source,
+        telegram_payment_id=telegram_payment_id,
     )

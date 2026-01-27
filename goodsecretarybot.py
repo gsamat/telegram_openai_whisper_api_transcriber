@@ -4,16 +4,17 @@ import os
 import sentry_sdk
 from dotenv import load_dotenv
 from openai import OpenAI
-from telegram import Update
+from telegram import LabeledPrice, Update
 from telegram.ext import (
     Application,
     CallbackContext,
     CommandHandler,
     MessageHandler,
+    PreCheckoutQueryHandler,
     filters,
 )
 
-from billing import decrement_balance
+from billing import CREDITS_PER_EUR, decrement_balance, increment_balance
 from transcriber import (
     detect_mime_type,
     hash_user_id,
@@ -27,6 +28,7 @@ MAX_MESSAGE_LENGTH = 4096
 
 telegram_token = os.environ.get("TELEGRAM_TOKEN")
 bot_name = os.environ.get("BOT_NAME")
+redsys_token = os.environ.get("REDSYS_TOKEN")
 
 
 async def start(update: Update, context: CallbackContext) -> None:
@@ -98,6 +100,67 @@ async def handle_command(update: Update, context: CallbackContext) -> None:
         await handle_voice(voice_update, context)
 
 
+async def topup(update: Update, context: CallbackContext) -> None:
+    """Handle /topup <amount> command - sends invoice to user."""
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text(
+            "Использование: /topup <сумма> (например, /topup 5)"
+        )
+        return
+
+    amount = int(context.args[0])
+    if amount < 1:
+        await update.message.reply_text("Сумма должна быть не менее 1 EUR")
+        return
+
+    credits = amount * CREDITS_PER_EUR
+    chat_id = update.message.chat_id
+    title = f"Пополнение на {credits} кредитов"
+    description = (
+        f"Пополнение баланса на {credits} кредитов ({credits} секунд транскрибации)"
+    )
+    payload = f"{update.message.from_user.id}"
+    currency = "EUR"
+    prices = [LabeledPrice("Кредиты", amount * 100)]  # amount in cents
+
+    await context.bot.send_invoice(
+        chat_id,
+        title,
+        description,
+        payload,
+        currency,
+        prices,
+        provider_token=redsys_token,
+    )
+
+
+async def precheckout_callback(update: Update, context: CallbackContext) -> None:
+    """Handle pre-checkout query - must respond within 10 seconds."""
+    query = update.pre_checkout_query
+    await query.answer(ok=True)
+
+
+async def successful_payment_callback(update: Update, context: CallbackContext) -> None:
+    """Handle successful payment - add credits to user balance."""
+    payment = update.message.successful_payment
+    hashed_user_id = hash_user_id(update.message.from_user.id)
+
+    # Amount is in cents, convert EUR to credits
+    amount_eur = payment.total_amount / 100
+    credits = amount_eur * CREDITS_PER_EUR
+
+    await increment_balance(
+        hashed_user_id=hashed_user_id,
+        amount=credits,
+        source="telegram_payment",
+        telegram_payment_id=payment.telegram_payment_charge_id,
+    )
+
+    await update.message.reply_text(
+        f"Оплата прошла успешно! Добавлено {int(credits)} кредитов на ваш баланс."
+    )
+
+
 def main():
     application = Application.builder().token(telegram_token).build()
 
@@ -109,11 +172,19 @@ def main():
     mention_handler = MessageHandler(
         filters.ChatType.GROUPS & filters.Mention(bot_name), handle_command
     )
+    topup_handler = CommandHandler("topup", topup)
+    precheckout_handler = PreCheckoutQueryHandler(precheckout_callback)
+    successful_payment_handler = MessageHandler(
+        filters.SUCCESSFUL_PAYMENT, successful_payment_callback
+    )
 
     application.add_handler(start_handler)
     application.add_handler(voice_handler)
     application.add_handler(text_handler)
     application.add_handler(mention_handler)
+    application.add_handler(topup_handler)
+    application.add_handler(precheckout_handler)
+    application.add_handler(successful_payment_handler)
 
     application.run_polling()
 
