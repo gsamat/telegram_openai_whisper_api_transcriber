@@ -14,7 +14,12 @@ from telegram.ext import (
     filters,
 )
 
-from billing import CREDITS_PER_EUR, decrement_balance, increment_balance
+from billing import (
+    CREDITS_PER_EUR,
+    decrement_balance,
+    get_user_balance,
+    increment_balance,
+)
 from transcriber import (
     detect_mime_type,
     hash_user_id,
@@ -100,6 +105,13 @@ async def handle_command(update: Update, context: CallbackContext) -> None:
         await handle_voice(voice_update, context)
 
 
+async def balance(update: Update, context: CallbackContext) -> None:
+    """Handle /balance command - shows user's current balance."""
+    hashed_user_id = hash_user_id(update.message.from_user.id)
+    current_balance = await get_user_balance(hashed_user_id)
+    await update.message.reply_text(f"Ваш баланс: {current_balance:.2f} кредитов")
+
+
 async def topup(update: Update, context: CallbackContext) -> None:
     """Handle /topup <amount> command - sends invoice to user."""
     if not context.args or not context.args[0].isdigit():
@@ -172,6 +184,7 @@ def main():
     mention_handler = MessageHandler(
         filters.ChatType.GROUPS & filters.Mention(bot_name), handle_command
     )
+    balance_handler = CommandHandler("balance", balance)
     topup_handler = CommandHandler("topup", topup)
     precheckout_handler = PreCheckoutQueryHandler(precheckout_callback)
     successful_payment_handler = MessageHandler(
@@ -182,6 +195,7 @@ def main():
     application.add_handler(voice_handler)
     application.add_handler(text_handler)
     application.add_handler(mention_handler)
+    application.add_handler(balance_handler)
     application.add_handler(topup_handler)
     application.add_handler(precheckout_handler)
     application.add_handler(successful_payment_handler)
