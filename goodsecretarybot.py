@@ -4,7 +4,7 @@ import os
 import sentry_sdk
 from dotenv import load_dotenv
 from openai import OpenAI
-from telegram import LabeledPrice, Update
+from telegram import LabeledPrice, ReplyKeyboardMarkup, Update
 from telegram.ext import (
     Application,
     CallbackContext,
@@ -16,6 +16,7 @@ from telegram.ext import (
 
 from billing import (
     CREDITS_PER_EUR,
+    INITIAL_BALANCE,
     decrement_balance,
     get_user_balance,
     increment_balance,
@@ -54,6 +55,32 @@ async def handle_voice(update: Update, context: CallbackContext) -> None:
     """
     hashed_user_id = hash_user_id(update.message.from_user.id)
     sentry_sdk.set_user({"id": hashed_user_id})
+
+    # Check balance before processing
+    current_balance = await get_user_balance(hashed_user_id)
+
+    if current_balance == 0:
+        # New user - grant initial balance silently
+        await increment_balance(
+            hashed_user_id=hashed_user_id,
+            amount=INITIAL_BALANCE,
+            source="initial_balance",
+        )
+    elif current_balance < 0:
+        # Insufficient balance - show top-up options
+        keyboard = [
+            ["5 EUR", "10 EUR"],
+            ["20 EUR", "45 EUR"],
+        ]
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard, one_time_keyboard=True, resize_keyboard=True
+        )
+        await update.message.reply_text(
+            f"Недостаточно кредитов (баланс: {current_balance:.2f}). Пожалуйста, пополните баланс:",
+            reply_markup=reply_markup,
+        )
+        return
+
     file_duration = (
         update.message.voice.duration
         if update.message.voice
@@ -112,6 +139,31 @@ async def balance(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text(f"Ваш баланс: {current_balance:.2f} кредитов")
 
 
+async def send_topup_invoice(
+    update: Update, context: CallbackContext, amount: int
+) -> None:
+    """Send a top-up invoice for the given EUR amount."""
+    credits = amount * CREDITS_PER_EUR
+    chat_id = update.message.chat_id
+    title = f"Пополнение на {credits} кредитов"
+    description = (
+        f"Пополнение баланса на {credits} кредитов ({credits} секунд транскрибации)"
+    )
+    payload = f"{update.message.from_user.id}"
+    currency = "EUR"
+    prices = [LabeledPrice("Кредиты", amount * 100)]
+
+    await context.bot.send_invoice(
+        chat_id,
+        title,
+        description,
+        payload,
+        currency,
+        prices,
+        provider_token=redsys_token,
+    )
+
+
 async def topup(update: Update, context: CallbackContext) -> None:
     """Handle /topup <amount> command - sends invoice to user."""
     if not context.args or not context.args[0].isdigit():
@@ -125,25 +177,19 @@ async def topup(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text("Сумма должна быть не менее 1 EUR")
         return
 
-    credits = amount * CREDITS_PER_EUR
-    chat_id = update.message.chat_id
-    title = f"Пополнение на {credits} кредитов"
-    description = (
-        f"Пополнение баланса на {credits} кредитов ({credits} секунд транскрибации)"
-    )
-    payload = f"{update.message.from_user.id}"
-    currency = "EUR"
-    prices = [LabeledPrice("Кредиты", amount * 100)]  # amount in cents
+    await send_topup_invoice(update, context, amount)
 
-    await context.bot.send_invoice(
-        chat_id,
-        title,
-        description,
-        payload,
-        currency,
-        prices,
-        provider_token=redsys_token,
-    )
+
+async def handle_topup_button(update: Update, context: CallbackContext) -> None:
+    """Handle top-up keyboard button presses like '5 EUR', '10 EUR', etc."""
+    text = update.message.text.strip()
+    amount_str = text.replace("EUR", "").strip()
+
+    if not amount_str.isdigit():
+        return
+
+    amount = int(amount_str)
+    await send_topup_invoice(update, context, amount)
 
 
 async def precheckout_callback(update: Update, context: CallbackContext) -> None:
@@ -177,6 +223,10 @@ def main():
     application = Application.builder().token(telegram_token).build()
 
     start_handler = CommandHandler("start", start)
+    topup_button_handler = MessageHandler(
+        filters.ChatType.PRIVATE & filters.Regex(r"^\d+\s*EUR$"),
+        handle_topup_button,
+    )
     voice_handler = MessageHandler(
         filters.ChatType.PRIVATE & (filters.VOICE | filters.AUDIO), handle_voice
     )
@@ -192,6 +242,7 @@ def main():
     )
 
     application.add_handler(start_handler)
+    application.add_handler(topup_button_handler)
     application.add_handler(voice_handler)
     application.add_handler(text_handler)
     application.add_handler(mention_handler)

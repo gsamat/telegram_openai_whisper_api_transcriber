@@ -8,6 +8,9 @@ DATABASE = "transcriptions.db"
 # 1 EUR = 100 credits (1 credit = 1 second of transcription)
 CREDITS_PER_EUR = 100
 
+# Initial balance for new users
+INITIAL_BALANCE = 1000
+
 
 async def init_billing_table():
     """Create billing table and index if they don't exist."""
