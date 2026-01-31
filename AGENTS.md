@@ -57,6 +57,40 @@ CREATE TABLE billing (
 - **Negative**: Credits consumed (transcription seconds)
 - Balance = `SUM(amount)` for a user
 
+### Billing Sources
+
+| Source | Description |
+|--------|-------------|
+| `telegram_payment` | Credits from Telegram Stars payment |
+| `transcribing` | Deduction for voice transcription (negative amount) |
+| `welcome_bonus` | Auto-credit when balance is exactly 0 |
+| `balance_adjustment` | Manual/administrative adjustments |
+
+### Balance Check (Pre-Transcription)
+
+Before transcribing, the bot checks user balance:
+
+- **balance > 0**: Proceed with transcription
+- **balance == 0**: Auto-credit 1800 seconds (source: `"welcome_bonus"`), then proceed
+- **balance < 0**: Return `None`, show insufficient balance message with top-up keyboard
+
+Implementation in `transcribe()` function (`src/bot.py`):
+
+```python
+async def transcribe(file, context, user_id) -> str | None:
+    user_hash = hash_user_id(user_id)
+    current_balance = await get_balance(user_hash)
+    
+    if current_balance == 0:
+        await bill(user_hash, 1800, "welcome_bonus")
+        current_balance = 1800
+    
+    if current_balance < 0:
+        return None  # Insufficient balance
+    
+    # Proceed with transcription...
+```
+
 ## Telegram Stars Payments
 
 ### Key Implementation Details
@@ -79,12 +113,75 @@ CREATE TABLE billing (
 
 ```python
 from telegram import LabeledPrice
-from telegram.ext import PreCheckoutQueryHandler, MessageHandler, filters
+from telegram.ext import PreCheckoutQueryHandler, MessageHandler, CallbackQueryHandler, filters
 
 app.add_handler(CommandHandler("topup", topup))
 app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
 app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+app.add_handler(CallbackQueryHandler(topup_callback, pattern=r"^topup:\d+$"))
 ```
+
+## Inline Keyboard Payments
+
+For quick top-up buttons (e.g., when balance is insufficient):
+
+### Implementation Pattern
+
+```python
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CallbackQueryHandler
+
+def get_topup_keyboard() -> InlineKeyboardMarkup:
+    """Create inline keyboard with top-up buttons (2x2 grid)."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("1 ⭐", callback_data="topup:1"),
+            InlineKeyboardButton("5 ⭐", callback_data="topup:5"),
+        ],
+        [
+            InlineKeyboardButton("10 ⭐", callback_data="topup:10"),
+            InlineKeyboardButton("20 ⭐", callback_data="topup:20"),
+        ],
+    ])
+
+async def topup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle top-up button callback - send invoice for selected amount."""
+    query = update.callback_query
+    await query.answer()  # MUST call this first to acknowledge callback
+    
+    # Parse stars from callback_data (e.g., "topup:5")
+    _, stars_str = query.data.split(":")
+    stars = int(stars_str)
+    
+    # Calculate and send invoice
+    total_seconds = stars * SECONDS_PER_STAR
+    minutes = total_seconds // 60
+    
+    await context.bot.send_invoice(
+        chat_id=query.message.chat_id,  # Use query.message.chat_id
+        title="Transcription Credits",
+        description=f"Top up your balance with {minutes} minutes of voice transcription",
+        payload="topup",
+        currency="XTR",
+        prices=[LabeledPrice("Transcription credits", stars)],
+    )
+```
+
+### Usage in Messages
+
+```python
+await update.message.reply_text(
+    "Insufficient balance. Please top up:",
+    reply_markup=get_topup_keyboard(),
+)
+```
+
+### Key Points
+
+- **Must call `query.answer()`** before processing to acknowledge the callback
+- Use `query.message.chat_id` (not `update.message.chat_id`) to get the chat ID
+- Callback data format: `"topup:<amount>"` (e.g., `"topup:5"`)
+- Register handler with pattern: `CallbackQueryHandler(callback_func, pattern=r"^topup:\d+$")`
 
 ## Voice Transcription
 

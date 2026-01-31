@@ -2,8 +2,8 @@ import os
 from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
-from telegram import LabeledPrice
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, PreCheckoutQueryHandler, filters
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, PreCheckoutQueryHandler, filters
 
 from src.billing import bill, get_balance, hash_user_id, init_billing_db
 from src.transcribe import transcribe_voice
@@ -15,6 +15,22 @@ load_dotenv()
 
 MAX_MESSAGE_LENGTH = 4096
 SECONDS_PER_STAR = 60 * 30  # 1 star = 30 minutes of transcription
+
+
+def get_topup_keyboard() -> InlineKeyboardMarkup:
+    """Create inline keyboard with top-up buttons (2x2 grid)."""
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("1 ⭐", callback_data="topup:1"),
+                InlineKeyboardButton("5 ⭐", callback_data="topup:5"),
+            ],
+            [
+                InlineKeyboardButton("10 ⭐", callback_data="topup:10"),
+                InlineKeyboardButton("20 ⭐", callback_data="topup:20"),
+            ],
+        ]
+    )
 
 
 async def transcribe(
@@ -108,6 +124,30 @@ async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def topup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle top-up button callback - send invoice for selected amount."""
+    query = update.callback_query
+    await query.answer()
+
+    # Parse stars from callback_data (e.g., "topup:5")
+    _, stars_str = query.data.split(":")
+    stars = int(stars_str)
+
+    # Calculate transcription time
+    total_seconds = stars * SECONDS_PER_STAR
+    minutes = total_seconds // 60
+
+    # Send invoice
+    await context.bot.send_invoice(
+        chat_id=query.message.chat_id,
+        title="Transcription Credits",
+        description=f"Top up your balance with {minutes} minutes of voice transcription",
+        payload="topup",
+        currency="XTR",
+        prices=[LabeledPrice("Transcription credits", stars)],
+    )
+
+
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle the /balance command - show user's current balance."""
     if update.message is None:
@@ -175,8 +215,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Check if transcription failed due to insufficient balance
         if transcript is None:
             await update.message.reply_text(
-                "Insufficient balance. Please top up with /topup command.",
+                "Insufficient balance. Please top up:",
                 reply_to_message_id=update.message.message_id,
+                reply_markup=get_topup_keyboard(),
             )
             return
 
@@ -218,7 +259,10 @@ async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYP
 
         # Check if transcription failed due to insufficient balance
         if transcript is None:
-            await update.message.reply_text("Insufficient balance. Please top up with /topup command.")
+            await update.message.reply_text(
+                "Insufficient balance. Please top up:",
+                reply_markup=get_topup_keyboard(),
+            )
             return
 
         # Send transcription as reply to the voice message
@@ -252,6 +296,7 @@ def main() -> None:
     # Payment handlers
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    app.add_handler(CallbackQueryHandler(topup_callback, pattern=r"^topup:\d+$"))
 
     # Voice/audio handlers for private chats
     app.add_handler(
