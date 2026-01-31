@@ -7,6 +7,7 @@ dependencies = [
     "python-dotenv>=1",
     "openai>=1",
     "python-magic>=0.4",
+    "aiosqlite>=0.20",
 ]
 
 [dependency-groups]

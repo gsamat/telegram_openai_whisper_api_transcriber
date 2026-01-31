@@ -4,14 +4,43 @@ from typing import TYPE_CHECKING
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+from src.billing import bill, hash_user_id, init_billing_db
 from src.transcribe import transcribe_voice
 
 if TYPE_CHECKING:
-    from telegram import Update
+    from telegram import Audio, Update, Voice
 
 load_dotenv()
 
 MAX_MESSAGE_LENGTH = 4096
+
+
+async def transcribe(
+    file: "Voice | Audio",
+    context: ContextTypes.DEFAULT_TYPE,
+    user_id: int,
+) -> str:
+    """Transcribe voice message and bill the user.
+
+    Args:
+        file: Voice or Audio object from Telegram
+        context: Bot context for downloading files
+        user_id: Telegram user ID to bill
+
+    Returns:
+        Transcribed text
+
+    Raises:
+        Exception: If transcription fails
+    """
+    # Transcribe using OpenAI Whisper
+    transcript = await transcribe_voice(file, context)
+
+    # Bill user for transcription
+    user_hash = hash_user_id(user_id)
+    await bill(user_hash, -file.duration, "transcribing")
+
+    return transcript
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -32,8 +61,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         if file is None:
             return
 
-        # Transcribe using OpenAI Whisper
-        transcript = await transcribe_voice(file, context)
+        # Transcribe and bill user
+        transcript = await transcribe(file, context, update.message.from_user.id)
 
         # Send transcription, splitting into chunks if needed
         for i in range(0, len(transcript), MAX_MESSAGE_LENGTH):
@@ -68,8 +97,8 @@ async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYP
         if file is None:
             return
 
-        # Transcribe using OpenAI Whisper
-        transcript = await transcribe_voice(file, context)
+        # Transcribe and bill user (bill the requester, not the voice sender)
+        transcript = await transcribe(file, context, update.message.from_user.id)
 
         # Send transcription as reply to the voice message
         for i in range(0, len(transcript), 4096):
@@ -80,6 +109,11 @@ async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"Sorry, transcription failed: {e}")
 
 
+async def post_init(application: Application) -> None:
+    """Initialize billing database on startup."""
+    await init_billing_db()
+
+
 def main() -> None:
     """Start the bot."""
     token = os.getenv("BOT_TOKEN")
@@ -87,7 +121,7 @@ def main() -> None:
         msg = "BOT_TOKEN environment variable is not set"
         raise RuntimeError(msg)
 
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).post_init(post_init).build()
 
     # Command handlers
     app.add_handler(CommandHandler("start", start))
