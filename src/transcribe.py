@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING
 
 import magic
 from openai import OpenAI
-from telegram.ext import ContextTypes
 
 if TYPE_CHECKING:
     from telegram import Audio, File, Voice
+    from telegram.ext import ContextTypes
 
 
 async def transcribe_voice(
-    file: "Voice | Audio",
+    file: Voice | Audio,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> str:
     """Transcribe a voice message or audio file using OpenAI Whisper API.
@@ -47,10 +47,8 @@ async def transcribe_voice(
     file_tuple = ("file", file_data.getvalue(), mime_type)
 
     # Call Whisper API
-    transcript = client.audio.transcriptions.create(
+    return client.audio.transcriptions.create(
         model="whisper-1",
         file=file_tuple,
         response_format="text",
     )
-
-    return transcript

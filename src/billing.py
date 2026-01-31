@@ -1,6 +1,6 @@
 import hashlib
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import aiosqlite
 
@@ -38,6 +38,26 @@ async def bill(user_hash: str, amount: float, source: str) -> None:
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute(
             "INSERT INTO billing (user_hash, amount, date, source) VALUES (?, ?, ?, ?)",
-            (user_hash, amount, datetime.now(timezone.utc).isoformat(), source),
+            (user_hash, amount, datetime.now(UTC).isoformat(), source),
         )
         await db.commit()
+
+
+async def get_balance(user_hash: str) -> float:
+    """Get user's current balance (sum of all transactions).
+
+    Args:
+        user_hash: SHA-256 hash of Telegram user ID
+
+    Returns:
+        Current balance in seconds (can be negative if user overspent)
+    """
+    async with (
+        aiosqlite.connect(DATABASE_PATH) as db,
+        db.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM billing WHERE user_hash = ?",
+            (user_hash,),
+        ) as cursor,
+    ):
+        row = await cursor.fetchone()
+        return row[0] if row else 0.0
