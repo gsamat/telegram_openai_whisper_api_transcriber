@@ -21,7 +21,7 @@ async def transcribe(
     file: Voice | Audio,
     context: ContextTypes.DEFAULT_TYPE,
     user_id: int,
-) -> str:
+) -> str | None:
     """Transcribe voice message and bill the user.
 
     Args:
@@ -30,16 +30,28 @@ async def transcribe(
         user_id: Telegram user ID to bill
 
     Returns:
-        Transcribed text
+        Transcribed text, or None if balance is insufficient
 
     Raises:
         Exception: If transcription fails
     """
+    # Check user balance
+    user_hash = hash_user_id(user_id)
+    current_balance = await get_balance(user_hash)
+
+    # Auto-credit when balance is exactly 0
+    if current_balance == 0:
+        await bill(user_hash, 1800, "welcome_bonus")
+        current_balance = 1800
+
+    # Insufficient balance - return None
+    if current_balance < 0:
+        return None
+
     # Transcribe using OpenAI Whisper
     transcript = await transcribe_voice(file, context)
 
     # Bill user for transcription
-    user_hash = hash_user_id(user_id)
     await bill(user_hash, -file.duration, "transcribing")
 
     return transcript
@@ -160,6 +172,14 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Transcribe and bill user
         transcript = await transcribe(file, context, update.message.from_user.id)
 
+        # Check if transcription failed due to insufficient balance
+        if transcript is None:
+            await update.message.reply_text(
+                "Insufficient balance. Please top up with /topup command.",
+                reply_to_message_id=update.message.message_id,
+            )
+            return
+
         # Send transcription, splitting into chunks if needed
         for i in range(0, len(transcript), MAX_MESSAGE_LENGTH):
             chunk = transcript[i : i + MAX_MESSAGE_LENGTH]
@@ -195,6 +215,11 @@ async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYP
 
         # Transcribe and bill user (bill the requester, not the voice sender)
         transcript = await transcribe(file, context, update.message.from_user.id)
+
+        # Check if transcription failed due to insufficient balance
+        if transcript is None:
+            await update.message.reply_text("Insufficient balance. Please top up with /topup command.")
+            return
 
         # Send transcription as reply to the voice message
         for i in range(0, len(transcript), 4096):
