@@ -5,6 +5,8 @@ requires-python = ">=3.14"
 dependencies = [
     "python-telegram-bot>=21",
     "python-dotenv>=1",
+    "openai>=1",
+    "python-magic>=0.4",
 ]
 
 [dependency-groups]

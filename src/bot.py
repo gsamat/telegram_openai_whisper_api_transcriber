@@ -2,19 +2,82 @@ import os
 from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+
+from src.transcribe import transcribe_voice
 
 if TYPE_CHECKING:
     from telegram import Update
 
 load_dotenv()
 
+MAX_MESSAGE_LENGTH = 4096
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle the /start command."""
     if update.message is None:
         return
-    await update.message.reply_text("Hello! Welcome to the bot.")
+    await update.message.reply_text("Hello! Welcome to the bot. Send me a voice message and I'll transcribe it for you.")
+
+
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle voice messages and audio files in private chats."""
+    if update.message is None:
+        return
+
+    try:
+        # Get voice or audio file
+        file = update.message.voice or update.message.audio
+        if file is None:
+            return
+
+        # Transcribe using OpenAI Whisper
+        transcript = await transcribe_voice(file, context)
+
+        # Send transcription, splitting into chunks if needed
+        for i in range(0, len(transcript), MAX_MESSAGE_LENGTH):
+            chunk = transcript[i : i + MAX_MESSAGE_LENGTH]
+            await update.message.reply_text(
+                chunk,
+                reply_to_message_id=update.message.message_id,
+            )
+
+    except Exception as e:
+        await update.message.reply_text(
+            f"Sorry, transcription failed: {e}",
+            reply_to_message_id=update.message.message_id,
+        )
+
+
+async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle bot mentions in groups that reply to voice messages."""
+    if update.message is None or update.message.reply_to_message is None:
+        return
+
+    reply_msg = update.message.reply_to_message
+
+    # Check if replied message contains voice or audio
+    if not (reply_msg.voice or reply_msg.audio):
+        await update.message.reply_text("Please reply to a voice message or audio file.")
+        return
+
+    try:
+        # Get voice or audio file
+        file = reply_msg.voice or reply_msg.audio
+        if file is None:
+            return
+
+        # Transcribe using OpenAI Whisper
+        transcript = await transcribe_voice(file, context)
+
+        # Send transcription as reply to the voice message
+        for i in range(0, len(transcript), 4096):
+            chunk = transcript[i : i + 4096]
+            await reply_msg.reply_text(chunk)
+
+    except Exception as e:
+        await update.message.reply_text(f"Sorry, transcription failed: {e}")
 
 
 def main() -> None:
@@ -25,7 +88,26 @@ def main() -> None:
         raise RuntimeError(msg)
 
     app = Application.builder().token(token).build()
+
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
+
+    # Voice/audio handlers for private chats
+    app.add_handler(
+        MessageHandler(
+            filters.ChatType.PRIVATE & (filters.VOICE | filters.AUDIO),
+            handle_voice,
+        )
+    )
+
+    # Group mention handler for transcribing replied voice messages
+    app.add_handler(
+        MessageHandler(
+            filters.ChatType.GROUPS & filters.REPLY & (filters.Entity("mention") | filters.Entity("text_mention")),
+            handle_group_mention,
+        )
+    )
+
     app.run_polling()
 
 
