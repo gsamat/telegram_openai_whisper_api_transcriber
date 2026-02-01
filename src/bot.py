@@ -77,7 +77,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle the /start command."""
     if update.message is None:
         return
-    await update.message.reply_text("Hello! Welcome to the bot. Send me a voice message and I'll transcribe it for you.")
+    await update.message.reply_text(
+        "Привет! Я распознаю голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. \n \nЕсть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, как именно оно записано. Ещё мне можно прислать голосовую заметку из встроенного приложения айфона. \n \nРаспознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио. \n \nНичего не записываю и не храню."
+    )
 
 
 async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -92,10 +94,9 @@ async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Parse amount from command args
     if not context.args or len(context.args) == 0:
         await update.message.reply_text(
-            "Please specify the amount of stars to purchase.\n"
             f"Usage: /topup <amount>\n"
             f"Example: /topup 5\n\n"
-            f"Rate: 1 star = {SECONDS_PER_STAR // 60} minutes of transcription"
+            f"1 звезда дает {SECONDS_PER_STAR // 60} минут"
         )
         return
 
@@ -117,7 +118,7 @@ async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await context.bot.send_invoice(
         chat_id=update.message.chat_id,
         title="Transcription Credits",
-        description=f"Top up your balance with {minutes} minutes of voice transcription",
+        description=f"{minutes} minutes of voice transcription",
         payload="topup",
         currency="XTR",  # Telegram Stars
         prices=[LabeledPrice("Transcription credits", stars)],
@@ -141,7 +142,7 @@ async def topup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await context.bot.send_invoice(
         chat_id=query.message.chat_id,
         title="Transcription Credits",
-        description=f"Top up your balance with {minutes} minutes of voice transcription",
+        description=f"{minutes} minutes of voice transcription",
         payload="topup",
         currency="XTR",
         prices=[LabeledPrice("Transcription credits", stars)],
@@ -159,7 +160,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     minutes = int(current_balance // 60)
     seconds = int(current_balance % 60)
 
-    await update.message.reply_text(f"Your balance: {minutes} min {seconds} sec")
+    await update.message.reply_text(f"Ваш {minutes} мин {seconds} сек")
 
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -194,7 +195,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     # Confirm to user
     minutes = credited_seconds // 60
     await update.message.reply_text(
-        f"Thank you for your payment! ✅\n\nCredited: {minutes} minutes ({credited_seconds} seconds) of transcription time.\nCost: {stars} ⭐"
+        f"Добавили {minutes} минут! Спасибо!"
     )
 
 
@@ -215,7 +216,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Check if transcription failed due to insufficient balance
         if transcript is None:
             await update.message.reply_text(
-                "Insufficient balance. Please top up:",
+                "У вас закончился лимит распознавания. Пополните счет звездами",
                 reply_to_message_id=update.message.message_id,
                 reply_markup=get_topup_keyboard(),
             )
@@ -260,7 +261,7 @@ async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYP
         # Check if transcription failed due to insufficient balance
         if transcript is None:
             await update.message.reply_text(
-                "Insufficient balance. Please top up:",
+                "У вас закончится лимит распознавания. Пополните счет звездами",
                 reply_markup=get_topup_keyboard(),
             )
             return
@@ -271,7 +272,7 @@ async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYP
             await reply_msg.reply_text(chunk)
 
     except (RuntimeError, OSError, ValueError) as e:
-        await update.message.reply_text(f"Sorry, transcription failed: {e}")
+        await update.message.reply_text(f"Ошибочка вышла: {e}")
 
 
 async def post_init(application: Application) -> None:
