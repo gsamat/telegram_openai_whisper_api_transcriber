@@ -1,8 +1,10 @@
+import contextlib
 import os
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, PreCheckoutQueryHandler, filters
 
 from src.billing import bill, get_balance, hash_user_id, init_billing_db
@@ -68,7 +70,10 @@ async def transcribe(
     transcript = await transcribe_voice(file, context)
 
     # Bill user for transcription
-    await bill(user_hash, -file.duration, "transcribing")
+    # file.duration can be int (seconds) or timedelta in python-telegram-bot
+    duration = file.duration
+    duration_float = duration.total_seconds() if isinstance(duration, timedelta) else float(duration)
+    await bill(user_hash, -duration_float, "transcribing")
 
     return transcript
 
@@ -77,9 +82,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle the /start command."""
     if update.message is None:
         return
-    await update.message.reply_text(
-        "Привет! Я распознаю голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. \n \nЕсть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, как именно оно записано. Ещё мне можно прислать голосовую заметку из встроенного приложения айфона. \n \nРаспознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио. \n \nНичего не записываю и не храню."
+    message = (
+        "Привет! Я распознаю голосовые сообщения. Вы кидаете мне голосовое, я в ответ возвращаю его текстовую версию. \n \n"
+        "Есть ограничение на максимальную длину голосового — около 40-80 минут в зависимости от того, как именно оно записано. "
+        "Ещё мне можно прислать голосовую заметку из встроенного приложения айфона. \n \n"
+        "Распознавание занимает от пары секунд до пары десятков секунд, в зависимости от длины аудио. \n \n"
+        "Ничего не записываю и не храню."
     )
+    await update.message.reply_text(message)
 
 
 async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -93,11 +103,7 @@ async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Parse amount from command args
     if not context.args or len(context.args) == 0:
-        await update.message.reply_text(
-            f"Usage: /topup <amount>\n"
-            f"Example: /topup 5\n\n"
-            f"1 звезда дает {SECONDS_PER_STAR // 60} минут"
-        )
+        await update.message.reply_text(f"Usage: /topup <amount>\nExample: /topup 5\n\n1 звезда дает {SECONDS_PER_STAR // 60} минут")
         return
 
     try:
@@ -128,6 +134,13 @@ async def topup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def topup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle top-up button callback - send invoice for selected amount."""
     query = update.callback_query
+    if query is None or query.data is None or query.message is None:
+        return
+
+    # Ensure message is accessible (not inaccessible/deleted)
+    if not isinstance(query.message, Message):
+        return
+
     await query.answer()
 
     # Parse stars from callback_data (e.g., "topup:5")
@@ -151,7 +164,7 @@ async def topup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle the /balance command - show user's current balance."""
-    if update.message is None:
+    if update.message is None or update.message.from_user is None:
         return
 
     user_hash = hash_user_id(update.message.from_user.id)
@@ -166,6 +179,8 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle pre-checkout query - verify payment before processing."""
     query = update.pre_checkout_query
+    if query is None:
+        return
 
     # Verify payload matches our invoice
     if query.invoice_payload != "topup":
@@ -178,7 +193,7 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle successful payment - credit user's balance."""
-    if update.message is None or update.message.successful_payment is None:
+    if update.message is None or update.message.successful_payment is None or update.message.from_user is None:
         return
 
     payment = update.message.successful_payment
@@ -194,14 +209,12 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
     # Confirm to user
     minutes = credited_seconds // 60
-    await update.message.reply_text(
-        f"Добавили {minutes} минут! Спасибо!"
-    )
+    await update.message.reply_text(f"Добавили {minutes} минут! Спасибо!")
 
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle voice messages and audio files in private chats."""
-    if update.message is None:
+    if update.message is None or update.message.from_user is None:
         return
 
     try:
@@ -239,7 +252,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle bot mentions in groups that reply to voice messages."""
-    if update.message is None or update.message.reply_to_message is None:
+    if update.message is None or update.message.reply_to_message is None or update.message.from_user is None:
         return
 
     reply_msg = update.message.reply_to_message
@@ -261,7 +274,7 @@ async def handle_group_mention(update: Update, context: ContextTypes.DEFAULT_TYP
         # Check if transcription failed due to insufficient balance
         if transcript is None:
             await update.message.reply_text(
-                "У вас закончится лимит распознавания. Пополните счет звездами",
+                "У вас закончился лимит распознавания. Пополните счет звездами",
                 reply_markup=get_topup_keyboard(),
             )
             return
@@ -280,6 +293,16 @@ async def post_init(application: Application) -> None:
     await init_billing_db()
 
 
+async def post_shutdown(application: Application) -> None:
+    """Logout from the Telegram API server on shutdown.
+
+    This ensures clean migration between Telegram API servers (local or public).
+    See: https://github.com/tdlib/telegram-bot-api#moving-a-bot-from-one-local-server-to-another
+    """
+    with contextlib.suppress(Exception):
+        await application.bot.log_out()
+
+
 def main() -> None:
     """Start the bot."""
     token = os.getenv("BOT_TOKEN")
@@ -287,7 +310,15 @@ def main() -> None:
         msg = "BOT_TOKEN environment variable is not set"
         raise RuntimeError(msg)
 
-    app = Application.builder().token(token).post_init(post_init).build()
+    # Build application with optional local server configuration
+    builder = Application.builder().token(token).post_init(post_init).post_shutdown(post_shutdown)
+
+    # Configure custom Telegram API server if specified
+    base_url = os.getenv("TELEGRAM_API_BASE_URL")
+    if base_url:
+        builder = builder.base_url(base_url)
+
+    app = builder.build()
 
     # Command handlers
     app.add_handler(CommandHandler("start", start))
