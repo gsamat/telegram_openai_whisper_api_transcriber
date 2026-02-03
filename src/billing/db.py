@@ -24,6 +24,9 @@ async def init_billing_db() -> None:
                 source TEXT NOT NULL
             )
         """)
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_billing_user_hash ON billing(user_hash)
+        """)
         await db.commit()
 
 
