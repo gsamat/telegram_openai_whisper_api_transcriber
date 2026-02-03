@@ -8,12 +8,19 @@ We have reference ../selfmailbot for project boilerplate
 bot-from-scratch/
 ├── src/
 │   ├── __init__.py
-│   ├── billing.py       # Billing system (SQLite)
-│   ├── bot.py           # Bot handlers and main entry point
-│   └── transcribe.py    # OpenAI Whisper integration
-├── billing.db           # SQLite database (created at runtime)
-├── .env.default         # Configuration template
-└── pyproject.toml       # Dependencies
+│   ├── config.py              # Shared constants
+│   ├── bot.py                 # Main entry point (orchestrator)
+│   ├── billing/
+│   │   ├── __init__.py        # Public API exports
+│   │   ├── db.py              # Database operations (SQLite)
+│   │   └── handlers.py        # Payment/balance handlers
+│   └── transcribing/
+│       ├── __init__.py        # Public API exports
+│       ├── whisper.py         # OpenAI Whisper integration
+│       └── handlers.py        # Voice/audio handlers
+├── billing.db                 # SQLite database (created at runtime)
+├── .env.default               # Configuration template
+└── pyproject.toml             # Dependencies
 ```
 
 ## Configuration
@@ -44,7 +51,7 @@ CREATE TABLE billing (
 )
 ```
 
-### Billing Functions (src/billing.py)
+### Billing Functions (src/billing/db.py)
 
 - `hash_user_id(user_id: int) -> str` - SHA-256 hash for privacy
 - `init_billing_db()` - Create billing table if not exists
@@ -74,22 +81,21 @@ Before transcribing, the bot checks user balance:
 - **balance == 0**: Auto-credit 1800 seconds (source: `"welcome_bonus"`), then proceed
 - **balance < 0**: Return `None`, show insufficient balance message with top-up keyboard
 
-Implementation in `transcribe()` function (`src/bot.py`):
+Implementation in `do_billing_stuff()` function (`src/billing/handlers.py`):
 
 ```python
-async def transcribe(file, context, user_id) -> str | None:
+async def do_billing_stuff(user_id: int) -> float:
     user_hash = hash_user_id(user_id)
     current_balance = await get_balance(user_hash)
     
     if current_balance == 0:
-        await bill(user_hash, 1800, "welcome_bonus")
-        current_balance = 1800
+        await bill(user_hash, WELCOME_BONUS, "welcome_bonus")
+        return WELCOME_BONUS
     
-    if current_balance < 0:
-        return None  # Insufficient balance
-    
-    # Proceed with transcription...
+    return current_balance
 ```
+
+This function is called by voice handlers in `src/transcribing/handlers.py` before transcription.
 
 ## Telegram Stars Payments
 
@@ -185,7 +191,7 @@ await update.message.reply_text(
 
 ## Voice Transcription
 
-- Uses OpenAI Whisper API via `src/transcribe.py`
+- Uses OpenAI Whisper API via `src/transcribing/whisper.py`
 - Bills user with negative amount: `bill(user_hash, -duration_seconds, "transcribing")`
 - Supports both Voice and Audio messages
 - In groups: bills the requester (not the voice sender)
