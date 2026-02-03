@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Databases
+*.db
+
+# Cache
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.cache/
+
+# Development
+Makefile
+AGENTS.md
+*.md
+
+# OS files
+.DS_Store
+Thumbs.db

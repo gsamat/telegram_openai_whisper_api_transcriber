@@ -9,4 +9,4 @@ lint:
 	uv run ty check src
 
 dev:
-	uv run watchmedo auto-restart --patterns '*.py' --recursive -- python -m src.bot
+	cd src && uv run watchmedo auto-restart --patterns '*.py' --recursive -- python -m bot

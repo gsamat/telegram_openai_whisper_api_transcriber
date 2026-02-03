@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, PreCheckoutQueryHandler, filters
 
-from src.billing import bill, get_balance, hash_user_id, init_billing_db
-from src.transcribe import transcribe_voice
+from billing import bill, get_balance, hash_user_id, init_billing_db
+from transcribe import transcribe_voice
 
 if TYPE_CHECKING:
     from telegram import Audio, Update, Voice
@@ -173,7 +173,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     minutes = int(current_balance // 60)
     seconds = int(current_balance % 60)
 
-    await update.message.reply_text(f"Ваш {minutes} мин {seconds} сек")
+    await update.message.reply_text(f"Ваш баланс {minutes} мин {seconds} сек")
 
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
